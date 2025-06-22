@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポモドーロタイマー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            min-width: 400px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+
+        .timer-display {
+            font-size: 4rem;
+            font-weight: 700;
+            margin: 30px 0;
+            font-family: 'Courier New', monospace;
+            color: #ffffff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .mode-display {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+
+        .controls {
+            margin: 30px 0;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            margin: 0 10px;
+            border-radius: 50px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #feca57);
+            border-radius: 4px;
+            transition: width 1s linear;
+            width: 0%;
+        }
+
+        .session-counter {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .time-settings {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .time-setting {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .time-setting label {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .time-setting input {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            width: 70px;
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        .time-setting input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍅 ポモドーロタイマー</h1>
+        
+        <div class="mode-display" id="modeDisplay">作業時間</div>
+        <div class="timer-display" id="timerDisplay">25:00</div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">開始</button>
+            <button id="pauseBtn" disabled>一時停止</button>
+            <button id="resetBtn">リセット</button>
+        </div>
+        
+        <div class="session-counter">
+            セッション: <span id="sessionCount">0</span>
+        </div>
+        
+        <div class="time-settings">
+            <div class="time-setting">
+                <label for="workTime">作業時間 (分)</label>
+                <input type="number" id="workTime" value="25" min="1" max="60">
+            </div>
+            <div class="time-setting">
+                <label for="shortBreak">短い休憩 (分)</label>
+                <input type="number" id="shortBreak" value="5" min="1" max="30">
+            </div>
+            <div class="time-setting">
+                <label for="longBreak">長い休憩 (分)</label>
+                <input type="number" id="longBreak" value="15" min="1" max="60">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PomodoroTimer {
+            constructor() {
+                this.workTime = 25 * 60; // 25分を秒に変換
+                this.shortBreakTime = 5 * 60; // 5分を秒に変換
+                this.longBreakTime = 15 * 60; // 15分を秒に変換
+                this.currentTime = this.workTime;
+                this.isRunning = false;
+                this.isPaused = false;
+                this.mode = 'work'; // 'work', 'shortBreak', 'longBreak'
+                this.sessionCount = 0;
+                this.timerInterval = null;
+                this.totalTime = this.workTime;
+
+                this.initializeElements();
+                this.bindEvents();
+                this.updateDisplay();
+            }
+
+            initializeElements() {
+                this.timerDisplay = document.getElementById('timerDisplay');
+                this.modeDisplay = document.getElementById('modeDisplay');
+                this.startBtn = document.getElementById('startBtn');
+                this.pauseBtn = document.getElementById('pauseBtn');
+                this.resetBtn = document.getElementById('resetBtn');
+                this.sessionCountDisplay = document.getElementById('sessionCount');
+                this.progressFill = document.getElementById('progressFill');
+                this.workTimeInput = document.getElementById('workTime');
+                this.shortBreakInput = document.getElementById('shortBreak');
+                this.longBreakInput = document.getElementById('longBreak');
+            }
+
+            bindEvents() {
+                this.startBtn.addEventListener('click', () => this.startTimer());
+                this.pauseBtn.addEventListener('click', () => this.pauseTimer());
+                this.resetBtn.addEventListener('click', () => this.resetTimer());
+                
+                this.workTimeInput.addEventListener('change', () => this.updateSettings());
+                this.shortBreakInput.addEventListener('change', () => this.updateSettings());
+                this.longBreakInput.addEventListener('change', () => this.updateSettings());
+            }
+
+            updateSettings() {
+                if (!this.isRunning) {
+                    this.workTime = parseInt(this.workTimeInput.value) * 60;
+                    this.shortBreakTime = parseInt(this.shortBreakInput.value) * 60;
+                    this.longBreakTime = parseInt(this.longBreakInput.value) * 60;
+                    
+                    if (this.mode === 'work') {
+                        this.currentTime = this.workTime;
+                        this.totalTime = this.workTime;
+                    }
+                    this.updateDisplay();
+                }
+            }
+
+            startTimer() {
+                if (!this.isRunning) {
+                    this.isRunning = true;
+                    this.isPaused = false;
+                    this.startBtn.disabled = true;
+                    this.pauseBtn.disabled = false;
+                    
+                    this.timerInterval = setInterval(() => {
+                        this.currentTime--;
+                        this.updateDisplay();
+                        
+                        if (this.currentTime <= 0) {
+                            this.timerComplete();
+                        }
+                    }, 1000);
+                }
+            }
+
+            pauseTimer() {
+                if (this.isRunning) {
+                    this.isRunning = false;
+                    this.isPaused = true;
+                    clearInterval(this.timerInterval);
+                    this.startBtn.disabled = false;
+                    this.pauseBtn.disabled = true;
+                }
+            }
+
+            resetTimer() {
+                this.isRunning = false;
+                this.isPaused = false;
+                clearInterval(this.timerInterval);
+                
+                this.mode = 'work';
+                this.currentTime = this.workTime;
+                this.totalTime = this.workTime;
+                
+                this.startBtn.disabled = false;
+                this.pauseBtn.disabled = true;
+                
+                this.updateDisplay();
+            }
+
+            timerComplete() {
+                this.isRunning = false;
+                clearInterval(this.timerInterval);
+                
+                this.playNotificationSound();
+                
+                if (this.mode === 'work') {
+                    this.sessionCount++;
+                    if (this.sessionCount % 4 === 0) {
+                        this.mode = 'longBreak';
+                        this.currentTime = this.longBreakTime;
+                        this.totalTime = this.longBreakTime;
+                    } else {
+                        this.mode = 'shortBreak';
+                        this.currentTime = this.shortBreakTime;
+                        this.totalTime = this.shortBreakTime;
+                    }
+                } else {
+                    this.mode = 'work';
+                    this.currentTime = this.workTime;
+                    this.totalTime = this.workTime;
+                }
+                
+                this.startBtn.disabled = false;
+                this.pauseBtn.disabled = true;
+                this.updateDisplay();
+                
+                this.showNotification();
+            }
+
+            playNotificationSound() {
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                } catch (error) {
+                    console.log('音声通知を再生できませんでした');
+                }
+            }
+
+            showNotification() {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    let message = '';
+                    if (this.mode === 'work') {
+                        message = '休憩が終わりました！作業を再開しましょう。';
+                    } else if (this.mode === 'shortBreak') {
+                        message = '作業お疲れさまでした！短い休憩を取りましょう。';
+                    } else {
+                        message = '作業お疲れさまでした！長い休憩を取りましょう。';
+                    }
+                    
+                    new Notification('ポモドーロタイマー', {
+                        body: message,
+                        icon: '🍅'
+                    });
+                }
+            }
+
+            updateDisplay() {
+                const minutes = Math.floor(this.currentTime / 60);
+                const seconds = this.currentTime % 60;
+                this.timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                let modeText = '';
+                switch (this.mode) {
+                    case 'work':
+                        modeText = '作業時間';
+                        break;
+                    case 'shortBreak':
+                        modeText = '短い休憩';
+                        break;
+                    case 'longBreak':
+                        modeText = '長い休憩';
+                        break;
+                }
+                this.modeDisplay.textContent = modeText;
+                
+                this.sessionCountDisplay.textContent = this.sessionCount;
+                
+                const progress = ((this.totalTime - this.currentTime) / this.totalTime) * 100;
+                this.progressFill.style.width = `${progress}%`;
+            }
+        }
+
+        // 通知の許可を求める
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // タイマーを初期化
+        const timer = new PomodoroTimer();
+    </script>
+</body>
+</html>
